@@ -6,7 +6,7 @@ import com.paretino.data.db.AppDatabase
 import com.paretino.export.BleEsp32Exporter
 import com.paretino.export.WallLinkExporter
 import com.paretino.vision.HoldDetector
-import com.paretino.vision.OpenCvHoldDetector
+import com.paretino.vision.YoloHoldDetector
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -34,7 +34,7 @@ object DatabaseModule {
 @InstallIn(SingletonComponent::class)
 abstract class BindingsModule {
     @Binds
-    abstract fun holdDetector(impl: OpenCvHoldDetector): HoldDetector
+    abstract fun holdDetector(impl: YoloHoldDetector): HoldDetector
 
     /** Swap for the real BLE implementation once the ESP32 firmware exists. */
     @Binds

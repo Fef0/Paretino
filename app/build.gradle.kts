@@ -40,6 +40,10 @@ android {
         compose = true
     }
 
+    androidResources {
+        noCompress += "onnx"
+    }
+
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
@@ -81,6 +85,7 @@ dependencies {
     implementation(libs.camerax.view)
     implementation(libs.androidx.exifinterface)
     implementation(libs.opencv)
+    implementation(libs.onnxruntime.android)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

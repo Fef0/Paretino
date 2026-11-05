@@ -17,3 +17,4 @@ ml/runs/
 ml/.venv*/
 __pycache__/
 *.pt
+ml/weights/
