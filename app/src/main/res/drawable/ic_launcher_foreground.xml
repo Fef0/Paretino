@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A plywood panel with three holds and a route line. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FFF3D9B1" android:pathData="M30,28h48v52h-48z" />
+    <path android:strokeColor="#FF8A5A2B" android:strokeWidth="1" android:pathData="M30,54h48M54,28v52" />
+    <path android:fillColor="#FF2E6FD8" android:pathData="M40,66c3,-4 9,-4 10,1c1,4 -5,7 -9,5c-2,-1 -2,-4 -1,-6z" />
+    <path android:fillColor="#FFE5484D" android:pathData="M58,50c2,-5 9,-6 11,-1c2,4 -2,8 -7,7c-3,0 -5,-3 -4,-6z" />
+    <path android:fillColor="#FF2FA36B" android:pathData="M48,34c3,-3 8,-2 8,2c0,4 -5,6 -8,4c-2,-1 -2,-4 0,-6z" />
+</vector>

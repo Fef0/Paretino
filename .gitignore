@@ -1,0 +1,19 @@
+.gradle/
+.kotlin/
+build/
+local.properties
+.idea/
+*.iml
+captures/
+.cxx/
+*.apk
+*.aab
+*.jks
+*.keystore
+
+# ML: datasets, training runs and virtualenvs stay out of git
+ml/datasets/
+ml/runs/
+ml/.venv*/
+__pycache__/
+*.pt
