@@ -29,7 +29,8 @@ Next, in order of value:
 - [ ] Measure speed on a real mid-range phone (target < 1.5 s); the ~2 s so far is an x86 emulator, not a phone
 - [ ] Weak spots seen so far: very dark noisy photos (F1 0.78 on real), printed graphics and black holds on training boards, very large holds in close-ups, false detections on people, clocks, lamps and thin scuff marks
 - [ ] Test the OpenCV fallback when the model fails to load (not exercised yet)
-- [ ] Decide licensing before any public release: Ultralytics and the teacher are AGPL-3.0, so a closed-source release needs a licence or another architecture; keep CC BY / BY-SA attribution
+- [x] Repository licensed under AGPL-3.0, matching Ultralytics and the teacher; a closed-source release would need an Ultralytics licence or another architecture
+- [ ] Keep CC BY / BY-SA attribution with any release (the Commons manifest is not in git)
 - [ ] Try int8 or fp16 to reduce model size and time
 
 ## 3. Unfinished from the current session

@@ -120,5 +120,9 @@ really trains on finer outlines, at a real cost in speed.
 
 ## Licensing
 
-Ultralytics and the teacher are AGPL-3.0. That is fine for personal use, but distributing a closed-source app needs an
-Ultralytics licence or a different architecture. Dataset attribution (BY and BY-SA) must be kept with any release.
+This repository is licensed under AGPL-3.0 (see `LICENSE`), matching Ultralytics and the teacher. A closed-source
+release would need an Ultralytics licence or a different architecture.
+
+The shipped model was trained on the data listed under Data, so keep those credits with any release. The Kaggle dataset
+is CC BY-SA 4.0, and each Commons file has its own licence and author in `datasets/commons/manifest.json`. That manifest
+is not in git, so include it with any release that ships the model.
