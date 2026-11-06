@@ -56,6 +56,43 @@ Filters that matter:
 Limits of these numbers: only 4 real test photos, no labelled real plywood photos, and the stress conditions come from
 the same family of degradations used for training. Real photos of our own wall are still the most valuable next data.
 
+## Results
+
+F1 at mask IoU 0.5, eval model `eval_v1`, on images it never saw in training:
+
+| Condition | Real: OpenCV | Real: YOLO | Plywood: OpenCV | Plywood: YOLO |
+|---|---|---|---|---|
+| clean | 0.30 | 0.95 | 0.50 | 0.99 |
+| underexposed -2.5EV | 0.44 | 0.95 | 0.60 | 0.99 |
+| overexposed +1.5EV | 0.23 | 0.94 | 0.48 | 0.98 |
+| tungsten warm | 0.29 | 0.94 | 0.47 | 0.99 |
+| cool LED | 0.31 | 0.95 | 0.51 | 0.99 |
+| sun stripe | 0.22 | 0.95 | 0.46 | 0.98 |
+| cast shadows | 0.35 | 0.95 | 0.45 | 0.99 |
+| spotlight | 0.20 | 0.95 | 0.49 | 0.99 |
+| low light + noise | 0.34 | 0.78 | 0.49 | 0.95 |
+| night mode smear | 0.31 | 0.91 | 0.44 | 0.97 |
+| barrel (ultra-wide) | 0.30 | 0.96 | 0.41 | 0.94 |
+| pincushion (tele) | 0.29 | 0.92 | 0.50 | 0.94 |
+| chromatic aberration | 0.36 | 0.92 | 0.49 | 0.91 |
+| vignette + soft corners | 0.35 | 0.95 | 0.54 | 0.99 |
+| defocus | 0.36 | 0.95 | 0.49 | 0.98 |
+| motion blur | 0.35 | 0.92 | 0.46 | 0.93 |
+| phone HDR + sharpen | 0.31 | 0.94 | 0.54 | 0.98 |
+| heavy JPEG | 0.30 | 0.93 | 0.49 | 0.98 |
+| **Mean** | **0.31** | **0.93** | **0.49** | **0.97** |
+
+On clean real photos YOLO has recall 0.94, precision 0.97 and outline IoU 0.90; OpenCV has recall 0.49, precision 0.22 and outline IoU 0.73.
+
+Per clean real photo (F1): sm/082 1.00 and sm/108 0.93 (gym never seen), bh-phone/126 0.98 and bh-phone/182 0.96 (phone never seen, but the same gym as the `bh` training photos).
+
+Read with care:
+
+- Only 189 real holds on 4 photos, and only 122 of them come from a gym the model never saw.
+- Plywood scores use composites built the same way as the training composites, so the model may benefit from paste artefacts.
+- The stress conditions are the same family as the training augmentation. Lighting and lens robustness is therefore likely overstated.
+- Unlabelled DIY and pro wall photos looked good on normal walls, but showed false detections on people, a clock, a lamp and printed letters, and misses on a printed board and very large holds.
+
 ## Model choice
 
 Eight epochs on half the tiles, scored on validation tiles:

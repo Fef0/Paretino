@@ -13,25 +13,31 @@ The current UI is stock Material 3 with default components and reads as dated.
   - [ ] the "Active" chip on master cards is unreadable over the photo (give it a solid background)
   - [ ] the extended FABs ("New master", "New path") are missing from the accessibility tree (uiautomator can't see them): check TalkBack
 
-## 2. Hold detection: test in harsh conditions, then probably replace OpenCV
-OpenCV results so far (synthetic plywood walls, 7 lighting conditions): recall@IoU 0.5 ≈ 0.80, mean outline IoU ≈ 0.78. It struggles with: holds touching each other, white/grey holds on light wood, hard sun-stripe edges (false slivers), wooden holds, chalk and rubber marks.
-- [ ] Collect **real photos of our wall** (20–50, different days, times and lighting; phone at different angles). This is the most important input
-- [ ] Build a test set: label hold outlines on ~20 of them (CVAT / Roboflow / Label Studio)
-- [ ] Measure the current OpenCV detector on that set (baseline)
-- [ ] On-device model: **YOLO instance segmentation** (e.g. YOLO11n-seg / YOLOv8n-seg), exported to TFLite/LiteRT, int8 or fp16, 640 px input
-  - [ ] start from a public climbing-hold dataset, fine-tune on our labelled photos
-  - [ ] segmentation masks → polygons (outlines that follow the hold, as required)
-  - [ ] new `TfliteHoldDetector` implementing `HoldDetector`; swap the Hilt binding in `di/AppModule.kt` (nothing else changes)
-  - [ ] keep OpenCV for tap-to-add (flood fill) and wall-corner detection, or replace those too
-  - [ ] check speed on a mid-range phone (target < 1.5 s) and APK size
-- [ ] Possible hybrid: YOLO for detection, OpenCV to refine outlines
+## 2. Hold detection
+YOLO is in the app on branch `feature/yolo-hold-detection`; pipeline and results are in `ml/README.md`. On held-out photos across 18 lighting and lens conditions, mean F1 went from 0.31 to 0.93 (real) and from 0.49 to 0.97 (plywood composites).
+
+Done:
+- [x] Dataset: hand polygons, auto-labelled gym and Commons photos, plywood composites, phone degradations
+- [x] Baseline and comparison: OpenCV vs YOLO on the same 20 test images
+- [x] On-device model: yolo11n-seg through ONNX Runtime (not TFLite), tiled, with outlines
+- [x] `YoloHoldDetector` bound in `di/AppModule.kt`, OpenCV kept for corners and as a fallback
+- [x] Kotlin matches Python (instrumented `HoldDetectionParityTest` + `ml/scripts/check_parity.py`)
+
+Next, in order of value:
+- [ ] **Real photos of our wall** (20-50, different days, times and lighting, phone at different angles): no real plywood photo has been tested yet; plywood numbers come from composites and may be optimistic
+- [ ] Label hold outlines on ~20 of them, score the model, then fine-tune on them
+- [ ] Measure speed on a real mid-range phone (target < 1.5 s); the ~2 s so far is an x86 emulator, not a phone
+- [ ] Weak spots seen so far: very dark noisy photos (F1 0.78 on real), printed graphics and black holds on training boards, very large holds in close-ups, false detections on people, clocks, lamps and thin scuff marks
+- [ ] Test the OpenCV fallback when the model fails to load (not exercised yet)
+- [ ] Decide licensing before any public release: Ultralytics and the teacher are AGPL-3.0, so a closed-source release needs a licence or another architecture; keep CC BY / BY-SA attribution
+- [ ] Try int8 or fp16 to reduce model size and time
 
 ## 3. Unfinished from the current session
 - [ ] Rebuild and re-test: the share image now also draws custom hold labels ("1", "L hand")
 - [x] Detector experiment "hard zone switch" (each side of a sun stripe gets its own background): precision 0.949 → 0.953, recall unchanged. A small gain, not worth porting before the YOLO decision
 - [ ] Finish the emulator test of **Master diff** (two masters exist: "Set of Nov 1" and "Autumn re-set": compare them, check added/removed/changed and the affected paths)
 - [ ] Emulator tests not done yet: anchor positions grid + LED numbering, backup export/restore, V-scale switch, second climber, edit/duplicate/delete path, mirror, edit holds of an existing master, camera capture
-- [ ] Release build: R8 rules check, APK size (OpenCV ≈ 100 MB debug), app signing
+- [ ] Release build: R8 rules check, APK size (debug is 195 MB with OpenCV and ONNX Runtime), split per ABI, app signing
 
 ## 4. Later
 - [ ] ESP32: BLE link (`BleEsp32Exporter` stub + `Esp32Protocol` frame are ready), pairing screen, "light on wall"
