@@ -14,7 +14,7 @@ The current UI is stock Material 3 with default components and reads as dated.
   - [ ] the extended FABs ("New master", "New path") are missing from the accessibility tree (uiautomator can't see them): check TalkBack
 
 ## 2. Hold detection
-YOLO is in the app on branch `feature/yolo-hold-detection`; pipeline and results are in `ml/README.md`. On held-out photos across 18 lighting and lens conditions, mean F1 went from 0.31 to 0.93 (real) and from 0.49 to 0.97 (plywood composites).
+YOLO is in the app on branch `feature/yolo-hold-detection`; pipeline and results are in `ml/README.md`. On held-out photos across 18 lighting and lens conditions, mean F1 went from 0.31 to 0.93 (real) and from 0.49 to 0.97 (plywood composites). Those figures come from the eval model `eval_v1`; the app ships `final_v1`, which also trained on the test photos and so has no score of its own.
 
 Done:
 - [x] Dataset: hand polygons, auto-labelled gym and Commons photos, plywood composites, phone degradations

@@ -12,7 +12,7 @@ The app loads it in `YoloHoldDetector.kt`; `yolo_infer.py` is the Python twin of
 | Harvest free-licence wall photos | `fetch_commons.py` | `commons/`, with `manifest.json` |
 | Plywood scenes from real hold cut-outs | `composite.py` | `composite_train/`, `composite_test/` |
 | Phone degradations and tiles | `phone_aug.py`, `build_dataset.py` | `yolo_eval/`, `yolo_final/` |
-| Training | `train.py` | `runs/NAME/` |
+| Training | `train.py`, or `train_supervised.sh` to restart after a crash | `runs/NAME/` |
 | OpenCV vs YOLO comparison | `benchmark.py`, `opencv_baseline.py` | `runs/benchmark.json` |
 
 Run everything from `ml/scripts`, except `train.py`, which runs from `ml`. Stored image paths are relative to `ml/scripts`.
@@ -55,6 +55,17 @@ Filters that matter:
 
 Limits of these numbers: only 4 real test photos, no labelled real plywood photos, and the stress conditions come from
 the same family of degradations used for training. Real photos of our own wall are still the most valuable next data.
+
+## Shipped model
+
+The app ships `final_v1`: `eval_v1` fine-tuned for 6 epochs on `yolo_final`, which adds the test photos' gyms and cut-outs.
+It trained on the test set, so it has no benchmark score of its own, and the Results below belong to `eval_v1`.
+
+Checks run on `final_v1`:
+
+- Validation tiles: mask mAP50 0.968 and mAP50-95 0.75 (`eval_v1`: 0.971 and about 0.76).
+- Eight unlabelled wall photos compared with `eval_v1`: most detections are the same. It dropped some false hits on people, but also some real wooden rungs, and still marks printed letters. This is neither a clear gain nor a clear loss.
+- App against Python on the emulator: every detection matched, mean outline IoU 0.97-1.00.
 
 ## Results
 
