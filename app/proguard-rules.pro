@@ -1,5 +1,5 @@
-# OpenCV Java bindings call into native code by name.
--keep class org.opencv.** { *; }
+# ONNX Runtime's native code finds these classes and fields by name.
+-keep class ai.onnxruntime.** { *; }
 # kotlinx.serialization
 -keepattributes *Annotation*, InnerClasses
 -keepclassmembers class com.paretino.** { *** Companion; }

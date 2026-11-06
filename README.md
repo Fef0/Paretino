@@ -15,9 +15,9 @@ It works offline. Hold detection runs on the phone, and your photos and routes s
 
 ## Hold detection
 
-A small YOLO segmentation model (yolo11n-seg, about 12 MB) outlines each hold rather than drawing a box around it. It runs through ONNX Runtime on tiles of the photo, and OpenCV handles wall corners. The older OpenCV detector remains in the code as a fallback.
+A small YOLO segmentation model (yolo11n-seg, about 12 MB) outlines each hold rather than drawing a box around it. It runs through ONNX Runtime on tiles of the photo. The app has no OpenCV dependency; the OpenCV detector it used to have is kept only as the baseline in `ml/scripts/opencv_baseline.py`.
 
-Both detectors were scored on images the test model never trained on, across 18 lighting and lens conditions such as sun stripes, low light, ultra-wide distortion and motion blur:
+The model was compared with that old detector on images the test model never trained on, across 18 lighting and lens conditions such as sun stripes, low light, ultra-wide distortion and motion blur:
 
 | Mean F1 (higher is better) | OpenCV | YOLO |
 |---|---|---|
@@ -41,6 +41,10 @@ Automatic labels came from an existing hold detector ([jwlarocque/yolov8n-freecl
 Every training image was then altered with simulated phone effects: exposure, colour casts, shadows, noise, lens distortion, blur and compression.
 
 The photos are not stored in this repository. The scripts that download and build the dataset are in [ml/scripts](ml/scripts).
+
+## Try it
+
+Download the APK from [Releases](https://github.com/Fef0/Paretino/releases). It needs Android 8.0 or newer on a 64-bit ARM phone. Early builds are pre-releases.
 
 ## Build
 

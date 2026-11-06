@@ -20,7 +20,8 @@ Done:
 - [x] Dataset: hand polygons, auto-labelled gym and Commons photos, plywood composites, phone degradations
 - [x] Baseline and comparison: OpenCV vs YOLO on the same 20 test images
 - [x] On-device model: yolo11n-seg through ONNX Runtime (not TFLite), tiled, with outlines
-- [x] `YoloHoldDetector` bound in `di/AppModule.kt`, OpenCV kept for corners and as a fallback
+- [x] `YoloHoldDetector` bound in `di/AppModule.kt`
+- [x] OpenCV removed from the app; mask geometry is plain Kotlin in `vision/MaskGeometry.kt`, and the Python pipeline still uses cv2
 - [x] Kotlin matches Python (instrumented `HoldDetectionParityTest` + `ml/scripts/check_parity.py`)
 
 Next, in order of value:
@@ -28,7 +29,8 @@ Next, in order of value:
 - [ ] Label hold outlines on ~20 of them, score the model, then fine-tune on them
 - [ ] Measure speed on a real mid-range phone (target < 1.5 s); the ~2 s so far is an x86 emulator, not a phone
 - [ ] Weak spots seen so far: very dark noisy photos (F1 0.78 on real), printed graphics and black holds on training boards, very large holds in close-ups, false detections on people, clocks, lamps and thin scuff marks
-- [ ] Test the OpenCV fallback when the model fails to load (not exercised yet)
+- [ ] Test the message shown when the model fails to load (detection reports an error, taps still add circles)
+- [ ] Automatic wall corners: removed with OpenCV, so the user drags all four handles. Bring back only if dragging proves annoying
 - [x] Repository licensed under AGPL-3.0, matching Ultralytics and the teacher; a closed-source release would need an Ultralytics licence or another architecture
 - [x] Data sources credited in `README.md` and `ml/DATA_CREDITS.md`; keep both with any release
 - [ ] Try int8 or fp16 to reduce model size and time
@@ -38,7 +40,8 @@ Next, in order of value:
 - [x] Detector experiment "hard zone switch" (each side of a sun stripe gets its own background): precision 0.949 → 0.953, recall unchanged. A small gain, not worth porting before the YOLO decision
 - [ ] Finish the emulator test of **Master diff** (two masters exist: "Set of Nov 1" and "Autumn re-set": compare them, check added/removed/changed and the affected paths)
 - [ ] Emulator tests not done yet: anchor positions grid + LED numbering, backup export/restore, V-scale switch, second climber, edit/duplicate/delete path, mirror, edit holds of an existing master, camera capture
-- [ ] Release build: R8 rules check, APK size (debug is 195 MB with OpenCV and ONNX Runtime), split per ABI, app signing
+- [x] Release build: R8 rules, one APK per CPU type, local signing through `keystore.properties` (not in git)
+- [ ] Try the release on a real phone: speed, camera capture, handle dragging
 
 ## 4. Later
 - [ ] ESP32: BLE link (`BleEsp32Exporter` stub + `Esp32Protocol` frame are ready), pairing screen, "light on wall"

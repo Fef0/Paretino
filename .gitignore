@@ -10,6 +10,7 @@ captures/
 *.aab
 *.jks
 *.keystore
+keystore.properties
 
 # ML: datasets, training runs and virtualenvs stay out of git
 ml/datasets/

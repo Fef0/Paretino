@@ -11,17 +11,6 @@ import com.paretino.domain.Polygon
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.opencv.android.Utils
-import org.opencv.core.Core
-import org.opencv.core.CvType
-import org.opencv.core.Mat
-import org.opencv.core.MatOfPoint
-import org.opencv.core.MatOfPoint2f
-import org.opencv.core.Point
-import org.opencv.core.Rect
-import org.opencv.core.Scalar
-import org.opencv.core.Size
-import org.opencv.imgproc.Imgproc
 import java.nio.FloatBuffer
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -38,13 +27,10 @@ import kotlin.math.roundToInt
  *
  * A rectified wall has a hundred or more small holds, too small for one 640 px pass, so the wall is cut into
  * overlapping tiles at near-native resolution and the masks are merged. Mirrors ml/scripts/yolo_infer.py.
- *
- * Falls back to [OpenCvHoldDetector] if the model cannot be loaded.
  */
 @Singleton
 class YoloHoldDetector @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val fallback: OpenCvHoldDetector,
 ) : HoldDetector {
 
     private val env by lazy { OrtEnvironment.getEnvironment() }
@@ -57,72 +43,64 @@ class YoloHoldDetector @Inject constructor(
                 setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
             }
             env.createSession(model, options)
-        }.onFailure { Log.e("Paretino", "Hold model failed to load, using OpenCV", it) }.getOrNull()
+        }.onFailure { Log.e("Paretino", "Hold model failed to load", it) }.getOrNull()
     }
 
-    private class Found(val score: Float, val points: List<Point>, val box: DoubleArray)
+    private class Found(val score: Float, val points: List<Pt>, val box: DoubleArray)
 
     override suspend fun detect(wall: Bitmap, sensitivity: Float): List<DetectedHold> {
-        val model = session ?: return fallback.detect(wall, sensitivity)
+        val model = session ?: error("The hold model could not be loaded")
         return withContext(Dispatchers.Default) {
-            val picture = toRgb(wall)
-            val rgb = picture.rgb
-            val w = rgb.cols(); val h = rgb.rows()
+            val picture = picture(wall)
+            val w = picture.tiledWidth; val h = picture.tiledHeight
             // Slider 1 is the tuned threshold; higher sensitivity accepts less certain holds.
             val conf = (CONF / sensitivity.toDouble().pow(2.0)).coerceIn(0.04, 0.7).toFloat()
             val found = ArrayList<Found>()
             for ((x, y) in tiles(w, h)) {
-                for (d in runTile(model, tile(rgb, x, y), conf)) {
+                for (d in runTile(model, tile(picture, x, y), conf)) {
                     val cut = (d.box[0] < EDGE && x > 0) || (d.box[1] < EDGE && y > 0) ||
                         (d.box[2] > TILE - EDGE && x + TILE < w) || (d.box[3] > TILE - EDGE && y + TILE < h)
                     outline(d)?.let { pts ->
-                        val shifted = pts.map { Point(it.x + x, it.y + y) }
+                        val shifted = pts.map { Pt(it.x + x, it.y + y) }
                         found += Found(d.score - if (cut) CUT_PENALTY else 0f, shifted, boundsOf(shifted))
                     }
                 }
             }
-            val result = merge(found).map { hold(rgb, it.points, picture.width, picture.height) }
-            rgb.release()
-            result
+            merge(found).map { hold(picture, it.points) }
         }
     }
 
-    override suspend fun detectAt(wall: Bitmap, point: NPoint): DetectedHold? {
-        val model = session ?: return fallback.detectAt(wall, point)
-        val hit = withContext(Dispatchers.Default) {
-            val picture = toRgb(wall)
-            val rgb = picture.rgb
-            val w = rgb.cols(); val h = rgb.rows()
-            val px = point.x * picture.width; val py = point.y * picture.height
-            val x0 = (px - TILE / 2).roundToInt().coerceIn(0, max(w - TILE, 0))
-            val y0 = (py - TILE / 2).roundToInt().coerceIn(0, max(h - TILE, 0))
-            val tap = Point(px - x0.toDouble(), py - y0.toDouble())
+    override suspend fun detectAt(wall: Bitmap, point: NPoint): DetectedHold = withContext(Dispatchers.Default) {
+        val picture = picture(wall)
+        val px = point.x * picture.width; val py = point.y * picture.height
+        session?.let { model ->
+            val x0 = (px - TILE / 2).roundToInt().coerceIn(0, max(picture.tiledWidth - TILE, 0))
+            val y0 = (py - TILE / 2).roundToInt().coerceIn(0, max(picture.tiledHeight - TILE, 0))
+            val tap = NPoint(px - x0, py - y0)
             // The user says a hold is here, so even a faint detection counts if it covers the tap.
-            val best = runTile(model, tile(rgb, x0, y0), TAP_CONF)
+            runTile(model, tile(picture, x0, y0), TAP_CONF)
                 .mapNotNull { d -> outline(d)?.let { d to it } }
-                .filter { (_, pts) -> Imgproc.pointPolygonTest(MatOfPoint2f(*pts.toTypedArray()), tap, false) >= 0 }
+                .filter { (_, pts) -> Polygon(pts.map { NPoint(it.x.toFloat(), it.y.toFloat()) }).contains(tap) }
                 .maxByOrNull { (d, _) -> d.score }
-            val r = best?.let { (_, pts) -> hold(rgb, pts.map { Point(it.x + x0, it.y + y0) }, picture.width, picture.height) }
-            rgb.release()
-            r
-        }
-        return hit ?: fallback.detectAt(wall, point)
+                ?.let { (_, pts) -> hold(picture, pts.map { Pt(it.x + x0, it.y + y0) }) }
+        } ?: DetectedHold( // Nothing found: a plain circle the user can live with.
+            Polygon.circle(point, TAP_RADIUS, picture.width.toFloat() / picture.height),
+            picture.pixels[py.toInt().coerceIn(0, picture.height - 1) * picture.width + px.toInt().coerceIn(0, picture.width - 1)],
+        )
     }
 
-    /** [rgb] may be padded up to one tile; [width] and [height] are the picture inside it, which outlines refer to. */
-    private class Picture(val rgb: Mat, val width: Int, val height: Int)
+    /** ARGB [pixels] of the working picture. Walls smaller than a tile read as grey padding beyond their edge. */
+    private class Picture(val pixels: IntArray, val width: Int, val height: Int) {
+        val tiledWidth = max(width, TILE)
+        val tiledHeight = max(height, TILE)
+    }
 
-    private fun toRgb(wall: Bitmap): Picture {
-        val rgba = Mat().also { Utils.bitmapToMat(wall, it) }
-        val rgb = Mat().also { Imgproc.cvtColor(rgba, it, Imgproc.COLOR_RGBA2RGB) }
-        rgba.release()
-        val s = WORK.toDouble() / max(rgb.cols(), rgb.rows())
-        if (s < 1) Imgproc.resize(rgb, rgb, Size(rgb.cols() * s, rgb.rows() * s), 0.0, 0.0, Imgproc.INTER_AREA)
-        val width = rgb.cols(); val height = rgb.rows()
-        if (rgb.cols() < TILE || rgb.rows() < TILE) {
-            Core.copyMakeBorder(rgb, rgb, 0, max(TILE - rgb.rows(), 0), 0, max(TILE - rgb.cols(), 0), Core.BORDER_CONSTANT, Scalar(114.0, 114.0, 114.0))
-        }
-        return Picture(rgb, width, height)
+    private fun picture(wall: Bitmap): Picture {
+        val s = WORK.toDouble() / max(wall.width, wall.height)
+        val scaled = if (s < 1) Bitmap.createScaledBitmap(wall, (wall.width * s).toInt(), (wall.height * s).toInt(), true) else wall
+        val pixels = IntArray(scaled.width * scaled.height)
+        scaled.getPixels(pixels, 0, scaled.width, 0, 0, scaled.width, scaled.height)
+        return Picture(pixels, scaled.width, scaled.height).also { if (scaled !== wall) scaled.recycle() }
     }
 
     private fun tiles(w: Int, h: Int): List<Pair<Int, Int>> {
@@ -136,16 +114,16 @@ class YoloHoldDetector @Inject constructor(
     }
 
     /** Tile pixels as a planar float tensor in 0..1. */
-    private fun tile(rgb: Mat, x: Int, y: Int): FloatBuffer {
-        val sub = rgb.submat(Rect(x, y, TILE, TILE)).clone()
-        val px = ByteArray(TILE * TILE * 3).also { sub.get(0, 0, it) }
-        sub.release()
+    private fun tile(picture: Picture, x: Int, y: Int): FloatBuffer {
         val plane = TILE * TILE
         val out = FloatArray(plane * 3)
-        for (i in 0 until plane) {
-            out[i] = (px[i * 3].toInt() and 0xFF) / 255f
-            out[plane + i] = (px[i * 3 + 1].toInt() and 0xFF) / 255f
-            out[2 * plane + i] = (px[i * 3 + 2].toInt() and 0xFF) / 255f
+        for (row in 0 until TILE) for (col in 0 until TILE) {
+            val inside = x + col < picture.width && y + row < picture.height
+            val c = if (inside) picture.pixels[(y + row) * picture.width + x + col] else PADDING
+            val i = row * TILE + col
+            out[i] = (c shr 16 and 0xFF) / 255f
+            out[plane + i] = (c shr 8 and 0xFF) / 255f
+            out[2 * plane + i] = (c and 0xFF) / 255f
         }
         return FloatBuffer.wrap(out)
     }
@@ -193,7 +171,7 @@ class YoloHoldDetector @Inject constructor(
     }
 
     /** The detection's mask inside its box, as an outline in tile pixels. */
-    private fun outline(d: Detection): List<Point>? {
+    private fun outline(d: Detection): List<Pt>? {
         val k = TILE.toDouble() / PROTO
         val x0 = d.box[0].coerceIn(0.0, TILE.toDouble()); val y0 = d.box[1].coerceIn(0.0, TILE.toDouble())
         val x1 = d.box[2].coerceIn(0.0, TILE.toDouble()); val y1 = d.box[3].coerceIn(0.0, TILE.toDouble())
@@ -208,24 +186,18 @@ class YoloHoldDetector @Inject constructor(
             for (c in 0 until PROTO_CH) v += d.coeffs[c] * d.proto[c * PROTO * PROTO + at]
             logits[y * lw + x] = 1f / (1f + exp(-v.coerceIn(-30f, 30f)))
         }
-        val low = Mat(lh, lw, CvType.CV_32FC1).apply { put(0, 0, logits) }
-        val up = Mat()
-        Imgproc.resize(low, up, Size(max((lw * k).toInt(), 2).toDouble(), max((lh * k).toInt(), 2).toDouble()), 0.0, 0.0, Imgproc.INTER_LINEAR)
-        val mask = Mat()
-        Imgproc.threshold(up, mask, 0.5, 255.0, Imgproc.THRESH_BINARY)
-        mask.convertTo(mask, CvType.CV_8UC1)
+        val upW = max((lw * k).toInt(), 2); val upH = max((lh * k).toInt(), 2)
+        val up = resizeBilinear(logits, lw, lh, upW, upH)
         // Outside the predicted box is not this hold.
         val ox = lx0 * k; val oy = ly0 * k
-        val keep = Mat.zeros(mask.size(), CvType.CV_8UC1)
-        Imgproc.rectangle(keep, Point(x0 - ox, y0 - oy), Point(x1 - ox, y1 - oy), Scalar(255.0), -1)
-        Core.bitwise_and(mask, keep, mask)
-        val contours = ArrayList<MatOfPoint>()
-        Imgproc.findContours(mask, contours, Mat(), Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE)
-        listOf(low, up, mask, keep).forEach { it.release() }
-        val best = contours.maxByOrNull { Imgproc.contourArea(it) }?.takeIf { Imgproc.contourArea(it) >= MIN_AREA } ?: return null
-        val approx = MatOfPoint2f()
-        Imgproc.approxPolyDP(MatOfPoint2f(*best.toArray()), approx, SIMPLIFY, true)
-        return approx.toArray().takeIf { it.size >= 3 }?.map { Point(it.x + ox, it.y + oy) }
+        val mask = BooleanArray(upW * upH)
+        for (y in (y0 - oy).toInt().coerceAtLeast(0)..(y1 - oy).toInt().coerceAtMost(upH - 1)) {
+            for (x in (x0 - ox).toInt().coerceAtLeast(0)..(x1 - ox).toInt().coerceAtMost(upW - 1)) {
+                mask[y * upW + x] = up[y * upW + x] > 0.5f
+            }
+        }
+        val best = largestOutline(mask, upW, upH)?.takeIf { polygonArea(it) >= MIN_AREA } ?: return null
+        return simplify(best, SIMPLIFY).takeIf { it.size >= 3 }?.map { Pt(it.x + ox, it.y + oy) }
     }
 
     /** Suppression across tiles on outlines; a fragment inside a kept hold loses to it. */
@@ -241,38 +213,33 @@ class YoloHoldDetector @Inject constructor(
         val x0 = min(a.box[0], b.box[0]).toInt() - 1; val y0 = min(a.box[1], b.box[1]).toInt() - 1
         val x1 = max(a.box[2], b.box[2]).toInt() + 2; val y1 = max(a.box[3], b.box[3]).toInt() + 2
         if (a.box[2] < b.box[0] || b.box[2] < a.box[0] || a.box[3] < b.box[1] || b.box[3] < a.box[1]) return false
-        val ma = raster(a, x0, y0, x1, y1); val mb = raster(b, x0, y0, x1, y1)
-        val both = Mat().also { Core.bitwise_and(ma, mb, it) }
-        val either = Mat().also { Core.bitwise_or(ma, mb, it) }
-        val inter = Core.countNonZero(both).toDouble()
-        val union = max(Core.countNonZero(either), 1).toDouble()
-        val smaller = max(min(Core.countNonZero(ma), Core.countNonZero(mb)), 1).toDouble()
-        listOf(ma, mb, both, either).forEach { it.release() }
+        val w = x1 - x0; val h = y1 - y0
+        val ma = fillPolygon(a.points, x0, y0, w, h); val mb = fillPolygon(b.points, x0, y0, w, h)
+        val inter = ma.indices.count { ma[it] && mb[it] }.toDouble()
+        val areaA = ma.count { it }; val areaB = mb.count { it }
+        val union = max(areaA + areaB - inter, 1.0)
+        val smaller = max(min(areaA, areaB), 1).toDouble()
         return inter / union > MERGE_IOU || inter / smaller > MERGE_CONTAINED
     }
 
-    private fun raster(f: Found, x0: Int, y0: Int, x1: Int, y1: Int): Mat {
-        val m = Mat.zeros(y1 - y0, x1 - x0, CvType.CV_8UC1)
-        val pts = MatOfPoint(*f.points.map { Point(it.x - x0, it.y - y0) }.toTypedArray())
-        Imgproc.fillPoly(m, listOf(pts), Scalar(1.0))
-        return m
-    }
+    private fun boundsOf(p: List<Pt>) = doubleArrayOf(p.minOf { it.x }, p.minOf { it.y }, p.maxOf { it.x }, p.maxOf { it.y })
 
-    private fun boundsOf(p: List<Point>) = doubleArrayOf(p.minOf { it.x }, p.minOf { it.y }, p.maxOf { it.x }, p.maxOf { it.y })
-
-    private fun hold(rgb: Mat, points: List<Point>, w: Int, h: Int): DetectedHold {
+    private fun hold(picture: Picture, points: List<Pt>): DetectedHold {
+        val w = picture.width; val h = picture.height
         val b = boundsOf(points)
         val x0 = b[0].toInt().coerceIn(0, w - 1); val y0 = b[1].toInt().coerceIn(0, h - 1)
-        val r = Rect(x0, y0, max(min(ceil(b[2]).toInt(), w) - x0, 1), max(min(ceil(b[3]).toInt(), h) - y0, 1))
-        val m = Mat.zeros(r.height, r.width, CvType.CV_8UC1)
-        Imgproc.fillPoly(m, listOf(MatOfPoint(*points.map { Point(it.x - r.x, it.y - r.y) }.toTypedArray())), Scalar(255.0))
-        val mean = Core.mean(rgb.submat(r), m)
-        m.release()
-        val color = (0xFF shl 24) or (mean.`val`[0].toInt().coerceIn(0, 255) shl 16) or
-            (mean.`val`[1].toInt().coerceIn(0, 255) shl 8) or mean.`val`[2].toInt().coerceIn(0, 255)
+        val rw = max(min(ceil(b[2]).toInt(), w) - x0, 1); val rh = max(min(ceil(b[3]).toInt(), h) - y0, 1)
+        val inside = fillPolygon(points, x0, y0, rw, rh)
+        var red = 0L; var green = 0L; var blue = 0L; var n = 0
+        for (y in 0 until rh) for (x in 0 until rw) {
+            if (!inside[y * rw + x]) continue
+            val c = picture.pixels[(y + y0) * w + x + x0]
+            red += c shr 16 and 0xFF; green += c shr 8 and 0xFF; blue += c and 0xFF; n++
+        }
+        val count = max(n, 1)
         return DetectedHold(
             Polygon(points.map { NPoint((it.x / w).toFloat().coerceIn(0f, 1f), (it.y / h).toFloat().coerceIn(0f, 1f)) }),
-            color,
+            (0xFF shl 24) or ((red / count).toInt() shl 16) or ((green / count).toInt() shl 8) or (blue / count).toInt(),
         )
     }
 
@@ -286,6 +253,7 @@ class YoloHoldDetector @Inject constructor(
         const val PROTO_CH = 32
         const val CONF = 0.25
         const val TAP_CONF = 0.05f
+        const val TAP_RADIUS = 0.015f
         const val TILE_NMS = 0.6
         const val EDGE = 4.0
         const val CUT_PENALTY = 0.5f
@@ -293,5 +261,6 @@ class YoloHoldDetector @Inject constructor(
         const val SIMPLIFY = 0.8
         const val MERGE_IOU = 0.5
         const val MERGE_CONTAINED = 0.7
+        const val PADDING = 0x727272
     }
 }

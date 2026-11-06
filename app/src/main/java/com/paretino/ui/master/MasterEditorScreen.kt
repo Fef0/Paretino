@@ -109,7 +109,8 @@ data class MasterEditorState(
 )
 
 /** When the wall fills the photo there is nothing to find: start from (almost) the whole frame. */
-val DEFAULT_CORNERS = listOf(NPoint(0.03f, 0.03f), NPoint(0.97f, 0.03f), NPoint(0.97f, 0.97f), NPoint(0.03f, 0.97f))
+/** Far enough from the sides that grabbing a handle does not trigger the system back gesture. */
+val DEFAULT_CORNERS = listOf(NPoint(0.12f, 0.12f), NPoint(0.88f, 0.12f), NPoint(0.88f, 0.88f), NPoint(0.12f, 0.88f))
 
 @HiltViewModel
 class MasterEditorViewModel @Inject constructor(
@@ -151,11 +152,10 @@ class MasterEditorViewModel @Inject constructor(
             val name = photos.import(uri)
             photoName = name
             val preview = photos.load(name, 1600)
-            val guess = Rectifier.findWallQuad(preview)
             state.update {
                 it.copy(
-                    busy = null, step = MasterStep.CORNERS, original = preview.asImageBitmap(), corners = guess ?: DEFAULT_CORNERS,
-                    message = if (guess == null) "Drag the handles onto the four corners of the wall" else "Check the corners match the wall",
+                    busy = null, step = MasterStep.CORNERS, original = preview.asImageBitmap(), corners = DEFAULT_CORNERS,
+                    message = "Drag the handles onto the four corners of the wall",
                 )
             }
         }.onFailure { e -> state.update { it.copy(busy = null, message = "Could not open the photo: ${e.message}") } }
@@ -209,7 +209,7 @@ class MasterEditorViewModel @Inject constructor(
             st.selected != null -> state.update { it.copy(selected = null) }
             else -> {
                 val bmp = rectified ?: return@launch
-                val hold = detector.detectAt(bmp, p) ?: return@launch
+                val hold = detector.detectAt(bmp, p)
                 state.update { it.copy(holds = it.holds + EditableHold(0, hold.outline, hold.colorArgb, manual = true), selected = it.holds.size) }
             }
         }

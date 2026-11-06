@@ -22,7 +22,7 @@ class HoldDetectionParityTest {
     fun detectsHoldsOnPushedPhotos() = runBlocking {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
-        val detector = YoloHoldDetector(context, OpenCvHoldDetector())
+        val detector = YoloHoldDetector(context)
         val listing = shell("ls /data/local/tmp/paretino").decodeToString().lines().filter { it.endsWith(".jpg") }
         assertTrue("no photos pushed", listing.isNotEmpty())
         val out = File(context.filesDir, "parity").apply { mkdirs() }

@@ -2,6 +2,7 @@
 
 How the on-device hold segmenter (`app/src/main/assets/models/holds.onnx`) is built and measured.
 The app loads it in `YoloHoldDetector.kt`; `yolo_infer.py` is the Python twin of that class.
+The app no longer uses OpenCV, but this pipeline still does, and `opencv_baseline.py` keeps the old detector for comparison.
 
 ## Pipeline
 
