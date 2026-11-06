@@ -39,6 +39,27 @@ def test_images():
     return items
 
 
+def frame_outline(shape, step=20):
+    """The picture edge as a polygon, so lens warps can report where the real picture ended up."""
+    h, w = shape[:2]
+    xs, ys = np.arange(0, w, step, dtype=np.float32), np.arange(0, h, step, dtype=np.float32)
+    return np.vstack([np.c_[xs, xs * 0], np.c_[ys * 0 + w - 1, ys], np.c_[xs[::-1], xs * 0 + h - 1], np.c_[ys[::-1] * 0, ys[::-1]]])
+
+
+def valid_area(border, shape):
+    """Scoring area: barrel warps push labels out of the frame, pincushion warps fill the edges with mirrored picture.
+    Neither can be judged, for any detector."""
+    m = np.zeros(shape, np.uint8)
+    cv2.fillPoly(m, [np.round(border).astype(np.int32)], 1)
+    return m
+
+
+def inside(poly, valid):
+    c = np.asarray(poly).mean(0)
+    x, y = int(c[0]), int(c[1])
+    return 0 <= x < valid.shape[1] and 0 <= y < valid.shape[0] and bool(valid[y, x])
+
+
 def raster(poly, box):
     x0, y0, x1, y1 = box
     m = np.zeros((y1 - y0, x1 - x0), np.uint8)
@@ -129,12 +150,17 @@ def main():
         times = defaultdict(list)
         for n, it in enumerate(items):
             rng = np.random.default_rng(1000 + n)
-            img, polys = suite[cond](it["img"], it["holds"] + it["volumes"], rng)
-            holds, volumes = polys[:len(it["holds"])], polys[len(it["holds"]):]
+            border = frame_outline(it["img"].shape)
+            img, polys = suite[cond](it["img"], it["holds"] + it["volumes"] + [border], rng)
+            valid = valid_area(polys[-1], img.shape[:2])
+            polys = polys[:-1]
+            holds = [p for p in polys[:len(it["holds"])] if inside(p, valid)]
+            volumes = polys[len(it["holds"]):]
             for name, det in detectors.items():
                 t = time.time()
                 pred = [np.asarray(p, np.float32) for p in det(img)]
                 times[name].append(time.time() - t)
+                pred = [p for p in pred if inside(p, valid)]
                 r = score(pred, holds, volumes if it["group"] == "real" else None, img.shape[:2])
                 rows[(name, it["group"])].append(r)
         for (name, group), rs in sorted(rows.items()):

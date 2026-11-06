@@ -80,7 +80,7 @@ class TiledYolo:
         if cv2.contourArea(c) < 12:
             return None
         c = cv2.approxPolyDP(c, 0.8, True).reshape(-1, 2).astype(np.float32)
-        return (c + (px0, py0) + offset) * scale_back
+        return ((c + (px0, py0) + offset) * scale_back).astype(np.float32)
 
     def detect(self, bgr):
         h0, w0 = bgr.shape[:2]

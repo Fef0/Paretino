@@ -65,7 +65,8 @@ class YoloHoldDetector @Inject constructor(
     override suspend fun detect(wall: Bitmap, sensitivity: Float): List<DetectedHold> {
         val model = session ?: return fallback.detect(wall, sensitivity)
         return withContext(Dispatchers.Default) {
-            val rgb = toRgb(wall)
+            val picture = toRgb(wall)
+            val rgb = picture.rgb
             val w = rgb.cols(); val h = rgb.rows()
             // Slider 1 is the tuned threshold; higher sensitivity accepts less certain holds.
             val conf = (CONF / sensitivity.toDouble().pow(2.0)).coerceIn(0.04, 0.7).toFloat()
@@ -80,7 +81,7 @@ class YoloHoldDetector @Inject constructor(
                     }
                 }
             }
-            val result = merge(found).map { hold(rgb, it.points, w, h) }
+            val result = merge(found).map { hold(rgb, it.points, picture.width, picture.height) }
             rgb.release()
             result
         }
@@ -89,9 +90,10 @@ class YoloHoldDetector @Inject constructor(
     override suspend fun detectAt(wall: Bitmap, point: NPoint): DetectedHold? {
         val model = session ?: return fallback.detectAt(wall, point)
         val hit = withContext(Dispatchers.Default) {
-            val rgb = toRgb(wall)
+            val picture = toRgb(wall)
+            val rgb = picture.rgb
             val w = rgb.cols(); val h = rgb.rows()
-            val px = point.x * w; val py = point.y * h
+            val px = point.x * picture.width; val py = point.y * picture.height
             val x0 = (px - TILE / 2).roundToInt().coerceIn(0, max(w - TILE, 0))
             val y0 = (py - TILE / 2).roundToInt().coerceIn(0, max(h - TILE, 0))
             val tap = Point(px - x0.toDouble(), py - y0.toDouble())
@@ -100,23 +102,27 @@ class YoloHoldDetector @Inject constructor(
                 .mapNotNull { d -> outline(d)?.let { d to it } }
                 .filter { (_, pts) -> Imgproc.pointPolygonTest(MatOfPoint2f(*pts.toTypedArray()), tap, false) >= 0 }
                 .maxByOrNull { (d, _) -> d.score }
-            val r = best?.let { (_, pts) -> hold(rgb, pts.map { Point(it.x + x0, it.y + y0) }, w, h) }
+            val r = best?.let { (_, pts) -> hold(rgb, pts.map { Point(it.x + x0, it.y + y0) }, picture.width, picture.height) }
             rgb.release()
             r
         }
         return hit ?: fallback.detectAt(wall, point)
     }
 
-    private fun toRgb(wall: Bitmap): Mat {
+    /** [rgb] may be padded up to one tile; [width] and [height] are the picture inside it, which outlines refer to. */
+    private class Picture(val rgb: Mat, val width: Int, val height: Int)
+
+    private fun toRgb(wall: Bitmap): Picture {
         val rgba = Mat().also { Utils.bitmapToMat(wall, it) }
         val rgb = Mat().also { Imgproc.cvtColor(rgba, it, Imgproc.COLOR_RGBA2RGB) }
         rgba.release()
         val s = WORK.toDouble() / max(rgb.cols(), rgb.rows())
         if (s < 1) Imgproc.resize(rgb, rgb, Size(rgb.cols() * s, rgb.rows() * s), 0.0, 0.0, Imgproc.INTER_AREA)
+        val width = rgb.cols(); val height = rgb.rows()
         if (rgb.cols() < TILE || rgb.rows() < TILE) {
             Core.copyMakeBorder(rgb, rgb, 0, max(TILE - rgb.rows(), 0), 0, max(TILE - rgb.cols(), 0), Core.BORDER_CONSTANT, Scalar(114.0, 114.0, 114.0))
         }
-        return rgb
+        return Picture(rgb, width, height)
     }
 
     private fun tiles(w: Int, h: Int): List<Pair<Int, Int>> {

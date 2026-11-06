@@ -42,7 +42,8 @@ def sources(phase):
     for name, (variants, tiles, scale) in pseudo.items():
         for f in sorted((ROOT / "datasets/pseudo" / name).glob("*.json")):
             d = json.loads(f.read_text())
-            if d.get("skipped") or d.get("holds", 0) < 8:
+            # Commons is mostly competition shots: below 30 holds the walls are only partly labelled.
+            if d.get("skipped") or d.get("holds", 0) < (30 if name == "commons" else 8):
                 continue
             if name != "commons" and pathlib.Path(d["file"]).name in gold_names:
                 continue
@@ -113,7 +114,7 @@ def work(job):
             cv2.imwrite(str(out / "images" / split / f"{name}.jpg"), img[y0:y0 + TILE, x0:x0 + TILE], [cv2.IMWRITE_JPEG_QUALITY, 92])
             with open(out / "labels" / split / f"{name}.txt", "w") as f:
                 for q in labels:
-                    q = cv2.approxPolyDP(q.reshape(-1, 1, 2), 0.7, True).reshape(-1, 2) if len(q) > 40 else q
+                    q = cv2.approxPolyDP(q.astype(np.float32).reshape(-1, 1, 2), 0.7, True).reshape(-1, 2) if len(q) > 40 else q
                     if len(q) >= 3:
                         f.write("0 " + " ".join(f"{v_:.5f}" for v_ in np.clip(q / TILE, 0, 1).ravel()) + "\n")
             made += 1
