@@ -14,6 +14,7 @@ The app loads it in `YoloHoldDetector.kt`; `yolo_infer.py` is the Python twin of
 | Phone degradations and tiles | `phone_aug.py`, `build_dataset.py` | `yolo_eval/`, `yolo_final/` |
 | Training | `train.py`, or `train_supervised.sh` to restart after a crash | `runs/NAME/` |
 | OpenCV vs YOLO comparison | `benchmark.py`, `opencv_baseline.py` | `runs/benchmark.json` |
+| Credits for the Commons photos used | `write_credits.py` | `DATA_CREDITS.md` (in git) |
 
 Run everything from `ml/scripts`, except `train.py`, which runs from `ml`. Stored image paths are relative to `ml/scripts`.
 
@@ -32,8 +33,8 @@ Run everything from `ml/scripts`, except `train.py`, which runs from `ml`. Store
 
 | Source | Use | Licence |
 |---|---|---|
-| Kaggle `tomasslama/indoor-climbing-gym-hold-segmentation` (gyms bh, sm, bh-phone) | Hand polygons, photos | CC BY-SA 4.0 |
-| Wikimedia Commons climbing categories | Auto-labelled photos | Per file, see `datasets/commons/manifest.json` (CC0, PD, CC BY, CC BY-SA) |
+| Kaggle `tomasslama/indoor-climbing-gym-hold-segmentation` by Tomáš Sláma (gyms bh, sm, bh-phone) | Hand polygons, photos | CC BY-SA 4.0 |
+| Wikimedia Commons climbing categories | Auto-labelled photos | Per file, see `DATA_CREDITS.md` (CC0, PD, CC BY, CC BY-SA) |
 | Teacher `jwlarocque/yolov8n-freeclimbs-detect-2` | Boxes for auto-labelling only | AGPL-3.0 |
 | `facebook/sam-vit-base` | Outlines for auto-labelling only | Apache-2.0 |
 | Ultralytics `yolo11n-seg` | Starting weights and trainer | AGPL-3.0 |
@@ -124,5 +125,4 @@ This repository is licensed under AGPL-3.0 (see `LICENSE`), matching Ultralytics
 release would need an Ultralytics licence or a different architecture.
 
 The shipped model was trained on the data listed under Data, so keep those credits with any release. The Kaggle dataset
-is CC BY-SA 4.0, and each Commons file has its own licence and author in `datasets/commons/manifest.json`. That manifest
-is not in git, so include it with any release that ships the model.
+is CC BY-SA 4.0, and `DATA_CREDITS.md` lists the author and licence of each of the 279 Commons photos used.

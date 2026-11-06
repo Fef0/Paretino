@@ -30,7 +30,7 @@ Next, in order of value:
 - [ ] Weak spots seen so far: very dark noisy photos (F1 0.78 on real), printed graphics and black holds on training boards, very large holds in close-ups, false detections on people, clocks, lamps and thin scuff marks
 - [ ] Test the OpenCV fallback when the model fails to load (not exercised yet)
 - [x] Repository licensed under AGPL-3.0, matching Ultralytics and the teacher; a closed-source release would need an Ultralytics licence or another architecture
-- [ ] Keep CC BY / BY-SA attribution with any release (the Commons manifest is not in git)
+- [x] Data sources credited in `README.md` and `ml/DATA_CREDITS.md`; keep both with any release
 - [ ] Try int8 or fp16 to reduce model size and time
 
 ## 3. Unfinished from the current session
